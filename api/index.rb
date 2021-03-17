@@ -16,6 +16,7 @@ Handler = Proc.new do |req, res|
 
   if req.request_method === 'POST'
     get_payload_request(req)
+    # p JSON.generate(req.raw_header)
     if !verify_webhook_signature(req)
       res.status = 401
     else
@@ -27,6 +28,9 @@ Handler = Proc.new do |req, res|
 end
 
 def handle_event_handler(req)
+  p @payload['action']
+  p @payload['check_run'].nil? ? @payload['check_suite']['app']['id'].to_s : @payload['check_run']['app']['id'].to_s
+
   case req['X-Github-Event']
   when 'check_suite'
     if @payload['check_suite']['app']['id'].to_s === APP_IDENTIFIER
@@ -48,10 +52,11 @@ def handle_event_handler(req)
 end
 
 def create_check_run
+  p 'create_check_run'
   check_run = @installation_client.post(
     "repos/#{@payload['repository']['full_name']}/check-runs",
     {
-      accept: 'application/vnd.github.v3+json',
+      accept: 'application/vnd.github.antiope-preview+json',
       name: APP_NAME,
       head_sha: @payload['check_run'].nil? ? @payload['check_suite']['head_sha'] : @payload['check_run']['head_sha']
     }
@@ -59,23 +64,27 @@ def create_check_run
 end
 
 def initiate_check_run
+  p 'initiate_check_run'
   updated_check_run = @installation_client.patch(
     "repos/#{@payload['repository']['full_name']}/check-runs/#{@payload['check_run']['id']}",
     {
-      accept: 'application/vnd.github.v3+json',
+      accept: 'application/vnd.github.antiope-preview+json',
       name: APP_NAME,
       status: 'in_progress',
       started_at: Time.now.utc.iso8601
     }
   )
 
+  p JSON.generate(@payload)
   summary = "#{COMPARE_BRANCH}...#{@payload['check_run']['check_suite']['head_branch']}"
+  p summary
   response = URI.parse("https://github.com/#{@payload['repository']['full_name']}/branches/pre_mergeable/#{summary}").read
+  p response
 
   updated_check_run = @installation_client.patch(
     "repos/#{@payload['repository']['full_name']}/check-runs/#{@payload['check_run']['id']}",
     {
-      accept: 'application/vnd.github.v3+json',
+      accept: 'application/vnd.github.antiope-preview+json',
       name: APP_NAME,
       status: 'completed',
       conclusion: (response.include? 'green') ? 'success' : 'failure',
@@ -106,6 +115,7 @@ def authenticate_app
   }
 
   jwt = JWT.encode(payload, PRIVATE_KEY, 'RS256')
+  p jwt
 
   @app_client ||= Octokit::Client.new(bearer_token: jwt)
 end
