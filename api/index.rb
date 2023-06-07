@@ -4,6 +4,7 @@ require 'openssl'
 require 'jwt'
 require 'time'
 require 'open-uri'
+require 'git'
 
 APP_NAME = 'Compare Branches'
 COMPARE_BRANCH = 'unstable'
@@ -76,10 +77,15 @@ def initiate_check_run
   )
 
   #p JSON.generate(@payload)
+  p @payload['check_run']['check_suite']['head_branch']
   summary = "#{COMPARE_BRANCH}...#{@payload['check_run']['check_suite']['head_branch']}"
 
-  diff = @installation_client.compare(@payload['repository']['full_name'], COMPARE_BRANCH, @payload['check_run']['check_suite']['head_branch'])
-  p 'status: ' + diff.status + ' - ahead_by: ' + diff.ahead_by.to_s + ' - behind_by: ' + diff.behind_by.to_s
+  git = Git.clone(@payload['repository']['full_name'], nil, branch: COMPARE_BRANCH)
+  merge_status = git.merge("origin/#{@payload['check_run']['check_suite']['head_branch']}")
+  p merge_status
+
+  # diff = @installation_client.merge(@payload['repository']['full_name'], COMPARE_BRANCH, @payload['check_run']['check_suite']['head_branch'])
+  # p 'status: ' + diff.status + ' - ahead_by: ' + diff.ahead_by.to_s + ' - behind_by: ' + diff.behind_by.to_s
 
   #p "url" "https://github.com/#{@payload['repository']['full_name']}/branches/pre_mergeable/#{summary}"
   #response = URI.parse("https://github.com/#{@payload['repository']['full_name']}/branches/pre_mergeable/#{summary}").read
@@ -96,7 +102,7 @@ def initiate_check_run
       output: {
         title: APP_NAME,
         summary: summary,
-        text: response
+        text: merge_status
       }
     }
   )
