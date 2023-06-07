@@ -28,8 +28,8 @@ Handler = Proc.new do |req, res|
 end
 
 def handle_event_handler(req)
-  p @payload['action']
-  p @payload['check_run'].nil? ? @payload['check_suite']['app']['id'].to_s : @payload['check_run']['app']['id'].to_s
+  p 'action:' + @payload['action']
+  #p @payload['check_run'].nil? ? @payload['check_suite']['app']['id'].to_s : @payload['check_run']['app']['id'].to_s
 
   case req['X-Github-Event']
   when 'check_suite'
@@ -48,7 +48,7 @@ def handle_event_handler(req)
         create_check_run
       end
     end
-  end
+  end    
 end
 
 def create_check_run
@@ -75,11 +75,15 @@ def initiate_check_run
     }
   )
 
-  p JSON.generate(@payload)
+  #p JSON.generate(@payload)
   summary = "#{COMPARE_BRANCH}...#{@payload['check_run']['check_suite']['head_branch']}"
-  p summary
-  response = URI.parse("https://github.com/#{@payload['repository']['full_name']}/branches/pre_mergeable/#{summary}").read
-  p response
+
+  diff = @installation_client.compare(@payload['repository']['full_name'], COMPARE_BRANCH, @payload['check_run']['check_suite']['head_branch'])
+  p 'status: ' + diff.status + ' - ahead_by: ' + diff.ahead_by.to_s + ' - behind_by: ' + diff.behind_by.to_s
+
+  #p "url" "https://github.com/#{@payload['repository']['full_name']}/branches/pre_mergeable/#{summary}"
+  #response = URI.parse("https://github.com/#{@payload['repository']['full_name']}/branches/pre_mergeable/#{summary}").read
+  #p response
 
   updated_check_run = @installation_client.patch(
     "repos/#{@payload['repository']['full_name']}/check-runs/#{@payload['check_run']['id']}",
